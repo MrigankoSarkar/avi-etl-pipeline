@@ -8,6 +8,7 @@ from flask import (
 
 import os
 import logging
+import traceback
 import pandas as pd
 
 from dotenv import load_dotenv
@@ -31,7 +32,7 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
-    raise Exception("DATABASE_URL missing")
+    raise Exception("DATABASE_URL missing in .env")
 
 
 # =========================================================
@@ -43,7 +44,11 @@ app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "cleaned_output"
 
-ALLOWED_EXTENSIONS = {"csv"}
+ALLOWED_EXTENSIONS = {
+    "csv",
+    "xls",
+    "xlsx"
+}
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
@@ -66,6 +71,7 @@ logging.basicConfig(
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
+    pool_recycle=300,
     future=True,
     connect_args={
         "sslmode": "require"
@@ -106,26 +112,50 @@ def get_single_value(conn, query, params=None):
 
 
 # =========================================================
-# LOAD + CLEAN DATASET
+# LOAD DATASET
 # =========================================================
 
-def load_and_clean_dataset(filepath):
+def load_dataset(filepath):
 
-    try:
+    extension = filepath.split(".")[-1].lower()
 
-        df = pd.read_csv(
+    if extension == "csv":
+
+        try:
+
+            df = pd.read_csv(
+                filepath,
+                dtype=str,
+                encoding="utf-8"
+            )
+
+        except UnicodeDecodeError:
+
+            df = pd.read_csv(
+                filepath,
+                dtype=str,
+                encoding="latin1"
+            )
+
+    elif extension in ["xls", "xlsx"]:
+
+        df = pd.read_excel(
             filepath,
-            dtype=str,
-            encoding="utf-8"
+            dtype=str
         )
 
-    except UnicodeDecodeError:
+    else:
 
-        df = pd.read_csv(
-            filepath,
-            dtype=str,
-            encoding="latin1"
-        )
+        raise Exception("Unsupported file type")
+
+    return df
+
+
+# =========================================================
+# CLEAN DATASET
+# =========================================================
+
+def clean_dataset_dataframe(df):
 
     # =====================================================
     # RENAME COLUMNS
@@ -146,6 +176,10 @@ def load_and_clean_dataset(filepath):
         "Area Name": "village_name"
 
     })
+
+    # =====================================================
+    # REQUIRED COLUMNS
+    # =====================================================
 
     required_columns = [
 
@@ -183,10 +217,14 @@ def load_and_clean_dataset(filepath):
 
     df = df[required_columns]
 
+    # =====================================================
+    # CLEAN NULLS
+    # =====================================================
+
     df = df.fillna("")
 
     # =====================================================
-    # CLEAN STRINGS
+    # STRING CLEANING
     # =====================================================
 
     for col in required_columns:
@@ -196,6 +234,10 @@ def load_and_clean_dataset(filepath):
             .astype(str)
             .str.strip()
         )
+
+    # =====================================================
+    # CLEAN TEXT COLUMNS
+    # =====================================================
 
     text_columns = [
 
@@ -211,7 +253,7 @@ def load_and_clean_dataset(filepath):
         df[col] = df[col].apply(clean_text)
 
     # =====================================================
-    # REMOVE EMPTY
+    # REMOVE EMPTY VILLAGE CODE
     # =====================================================
 
     df = df[
@@ -225,6 +267,10 @@ def load_and_clean_dataset(filepath):
     df = df.drop_duplicates(
         subset=["village_code"]
     )
+
+    # =====================================================
+    # RESET INDEX
+    # =====================================================
 
     df = df.reset_index(drop=True)
 
@@ -242,8 +288,12 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS country (
 
             id SERIAL PRIMARY KEY,
-            name TEXT,
-            code TEXT UNIQUE
+
+            name TEXT NOT NULL,
+
+            code TEXT UNIQUE NOT NULL,
+
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
         )
 
@@ -254,9 +304,14 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS state (
 
             id SERIAL PRIMARY KEY,
-            name TEXT,
-            code TEXT,
-            country_id INTEGER,
+
+            name TEXT NOT NULL,
+
+            code TEXT NOT NULL,
+
+            country_id INTEGER NOT NULL,
+
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
             UNIQUE(country_id, code)
 
@@ -269,9 +324,14 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS district (
 
             id SERIAL PRIMARY KEY,
-            name TEXT,
-            code TEXT,
-            state_id INTEGER,
+
+            name TEXT NOT NULL,
+
+            code TEXT NOT NULL,
+
+            state_id INTEGER NOT NULL,
+
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
             UNIQUE(state_id, code)
 
@@ -284,9 +344,14 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS subdistrict (
 
             id SERIAL PRIMARY KEY,
-            name TEXT,
-            code TEXT,
-            district_id INTEGER,
+
+            name TEXT NOT NULL,
+
+            code TEXT NOT NULL,
+
+            district_id INTEGER NOT NULL,
+
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
             UNIQUE(district_id, code)
 
@@ -299,9 +364,14 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS village (
 
             id SERIAL PRIMARY KEY,
-            name TEXT,
-            code TEXT,
-            subdistrict_id INTEGER,
+
+            name TEXT NOT NULL,
+
+            code TEXT NOT NULL,
+
+            subdistrict_id INTEGER NOT NULL,
+
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
             UNIQUE(subdistrict_id, code)
 
@@ -325,7 +395,9 @@ def create_tables(conn):
             subdistrict_name TEXT,
 
             village_code TEXT UNIQUE,
-            village_name TEXT
+            village_name TEXT,
+
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
         )
 
@@ -339,15 +411,13 @@ def create_tables(conn):
 @app.route("/")
 def home():
 
-    return jsonify({
+    logging.info("Homepage Opened")
 
-        "message": "Server Running"
-
-    })
+    return render_template("index.html")
 
 
 # =========================================================
-# HEALTH
+# HEALTH CHECK
 # =========================================================
 
 @app.route("/health")
@@ -355,16 +425,18 @@ def health():
 
     return jsonify({
 
-        "status": "healthy"
+        "status": "healthy",
+
+        "message": "Server Running"
 
     })
 
 
 # =========================================================
-# CLEAN DATASET ONLY
+# CLEAN DATASET ROUTE
 # =========================================================
 
-@app.route("/clean-dataset", methods=["POST"])
+@app.route("/upload", methods=["POST"])
 def clean_dataset():
 
     try:
@@ -377,22 +449,52 @@ def clean_dataset():
                 "error": "No file uploaded"
             }), 400
 
+        if file.filename == "":
+
+            return jsonify({
+                "error": "Empty filename"
+            }), 400
+
+        if not allowed_file(file.filename):
+
+            return jsonify({
+                "error": "Invalid file format"
+            }), 400
+
         filename = secure_filename(file.filename)
 
-        filepath = os.path.join(
+        upload_path = os.path.join(
             UPLOAD_FOLDER,
             filename
         )
 
-        file.save(filepath)
+        file.save(upload_path)
 
-        logging.info("Dataset cleaning initialized")
+        logging.info(
+            "Dataset cleaning initialized"
+        )
 
-        df = load_and_clean_dataset(filepath)
+        # =================================================
+        # LOAD DATA
+        # =================================================
+
+        df = load_dataset(upload_path)
+
+        # =================================================
+        # CLEAN DATA
+        # =================================================
+
+        df = clean_dataset_dataframe(df)
+
+        # =================================================
+        # OUTPUT FILE
+        # =================================================
+
+        output_filename = f"cleaned_{filename}"
 
         output_path = os.path.join(
             OUTPUT_FOLDER,
-            f"cleaned_{filename}"
+            output_filename
         )
 
         df.to_csv(
@@ -400,16 +502,19 @@ def clean_dataset():
             index=False
         )
 
-        logging.info("Dataset cleaning completed")
+        logging.info(
+            "Dataset cleaning completed"
+        )
 
         return send_file(
             output_path,
-            as_attachment=True
+            as_attachment=True,
+            download_name=output_filename
         )
 
     except Exception as e:
 
-        logging.exception("Dataset cleaning failed")
+        logging.error(traceback.format_exc())
 
         return jsonify({
 
@@ -436,78 +541,50 @@ def upload_to_db():
                 "error": "No file uploaded"
             }), 400
 
+        if file.filename == "":
+
+            return jsonify({
+                "error": "Empty filename"
+            }), 400
+
+        if not allowed_file(file.filename):
+
+            return jsonify({
+                "error": "Invalid file format"
+            }), 400
+
         filename = secure_filename(file.filename)
 
-        filepath = os.path.join(
+        upload_path = os.path.join(
             UPLOAD_FOLDER,
             filename
         )
 
-        file.save(filepath)
+        file.save(upload_path)
 
-        logging.info("Database upload initialized")
-
-        # =================================================
-        # CLEAN DATASET
-        # =================================================
-
-        df = load_and_clean_dataset(filepath)
+        logging.info(
+            "Database upload initialized"
+        )
 
         # =================================================
-        # DB TRANSACTION
+        # LOAD DATA
+        # =================================================
+
+        df = load_dataset(upload_path)
+
+        # =================================================
+        # CLEAN DATA
+        # =================================================
+
+        df = clean_dataset_dataframe(df)
+
+        # =================================================
+        # DATABASE TRANSACTION
         # =================================================
 
         with engine.begin() as conn:
 
             create_tables(conn)
-
-            # =============================================
-            # RAW TABLE
-            # =============================================
-
-            raw_query = text("""
-
-                INSERT INTO village_data (
-
-                    state_code,
-                    state_name,
-
-                    district_code,
-                    district_name,
-
-                    subdistrict_code,
-                    subdistrict_name,
-
-                    village_code,
-                    village_name
-
-                )
-
-                VALUES (
-
-                    :state_code,
-                    :state_name,
-
-                    :district_code,
-                    :district_name,
-
-                    :subdistrict_code,
-                    :subdistrict_name,
-
-                    :village_code,
-                    :village_name
-
-                )
-
-                ON CONFLICT (village_code)
-                DO NOTHING
-
-            """)
-
-            conn.execute(
-                raw_query,
-                df.to_dict(orient="records")
-            )
 
             # =============================================
             # COUNTRY
@@ -516,13 +593,17 @@ def upload_to_db():
             conn.execute(text("""
 
                 INSERT INTO country (
+
                     name,
                     code
+
                 )
 
                 VALUES (
+
                     'India',
                     'IN'
+
                 )
 
                 ON CONFLICT (code)
@@ -722,6 +803,8 @@ def upload_to_db():
                 "subdistrict_code"
             ]].drop_duplicates()
 
+            inserted_rows = 0
+
             for _, row in villages.iterrows():
 
                 subdistrict_id = get_single_value(
@@ -776,19 +859,88 @@ def upload_to_db():
 
                     })
 
-        logging.info("Database upload completed")
+                    inserted_rows += 1
+
+            # =============================================
+            # RAW DATA TABLE
+            # =============================================
+
+            conn.execute(
+
+                text("""
+
+                    INSERT INTO village_data (
+
+                        state_code,
+                        state_name,
+
+                        district_code,
+                        district_name,
+
+                        subdistrict_code,
+                        subdistrict_name,
+
+                        village_code,
+                        village_name
+
+                    )
+
+                    VALUES (
+
+                        :state_code,
+                        :state_name,
+
+                        :district_code,
+                        :district_name,
+
+                        :subdistrict_code,
+                        :subdistrict_name,
+
+                        :village_code,
+                        :village_name
+
+                    )
+
+                    ON CONFLICT (village_code)
+                    DO NOTHING
+
+                """),
+
+                df.to_dict(orient="records")
+
+            )
+
+        logging.info(
+            "Database upload completed"
+        )
 
         return jsonify({
 
             "success": True,
-            "message": "Dataset uploaded successfully",
+
+            "message":
+            "Dataset uploaded successfully",
+
+            "rows_inserted": inserted_rows,
+
             "total_rows": len(df)
 
         })
 
+    except SQLAlchemyError as e:
+
+        logging.error(traceback.format_exc())
+
+        return jsonify({
+
+            "success": False,
+            "error": str(e)
+
+        }), 500
+
     except Exception as e:
 
-        logging.exception("Database upload failed")
+        logging.error(traceback.format_exc())
 
         return jsonify({
 
@@ -803,6 +955,8 @@ def upload_to_db():
 # =========================================================
 
 if __name__ == "__main__":
+
+    logging.info("Server Running")
 
     app.run(
         host="0.0.0.0",
