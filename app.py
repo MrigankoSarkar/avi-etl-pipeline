@@ -1,7 +1,8 @@
 from flask import (
     Flask,
     request,
-    jsonify
+    jsonify,
+    render_template
 )
 
 import os
@@ -12,8 +13,10 @@ from dotenv import load_dotenv
 
 from werkzeug.utils import secure_filename
 
-from sqlalchemy import create_engine
-from sqlalchemy import text
+from sqlalchemy import (
+    create_engine,
+    text
+)
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -27,18 +30,25 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
-    raise Exception("DATABASE_URL missing")
+    raise Exception("DATABASE_URL missing in .env")
 
 
 # =========================================================
-# APP
+# APP CONFIG
 # =========================================================
 
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
 
+ALLOWED_EXTENSIONS = {"csv"}
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+
+# =========================================================
+# LOGGING
+# =========================================================
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,7 +57,7 @@ logging.basicConfig(
 
 
 # =========================================================
-# DB ENGINE
+# DATABASE ENGINE
 # =========================================================
 
 engine = create_engine(
@@ -66,6 +76,16 @@ logging.info("Connected To NeonDB")
 # HELPERS
 # =========================================================
 
+def allowed_file(filename):
+
+    return (
+        "." in filename
+        and
+        filename.rsplit(".", 1)[1].lower()
+        in ALLOWED_EXTENSIONS
+    )
+
+
 def clean_text(value):
 
     if pd.isna(value):
@@ -74,18 +94,14 @@ def clean_text(value):
     return str(value).strip().title()
 
 
-def allowed_file(filename):
+def get_single_value(conn, query, params=None):
 
-    allowed_extensions = {
-        "csv"
-    }
+    result = conn.execute(
+        text(query),
+        params or {}
+    ).scalar()
 
-    return (
-        "." in filename
-        and
-        filename.rsplit(".", 1)[1].lower()
-        in allowed_extensions
-    )
+    return result
 
 
 # =========================================================
@@ -93,6 +109,10 @@ def allowed_file(filename):
 # =========================================================
 
 def create_tables(conn):
+
+    # =====================================================
+    # COUNTRY
+    # =====================================================
 
     conn.execute(text("""
 
@@ -110,6 +130,10 @@ def create_tables(conn):
 
     """))
 
+    # =====================================================
+    # STATE
+    # =====================================================
+
     conn.execute(text("""
 
         CREATE TABLE IF NOT EXISTS state (
@@ -126,12 +150,16 @@ def create_tables(conn):
 
             UNIQUE(country_id, code),
 
-            FOREIGN KEY(country_id)
+            FOREIGN KEY (country_id)
             REFERENCES country(id)
 
         )
 
     """))
+
+    # =====================================================
+    # DISTRICT
+    # =====================================================
 
     conn.execute(text("""
 
@@ -149,12 +177,16 @@ def create_tables(conn):
 
             UNIQUE(state_id, code),
 
-            FOREIGN KEY(state_id)
+            FOREIGN KEY (state_id)
             REFERENCES state(id)
 
         )
 
     """))
+
+    # =====================================================
+    # SUBDISTRICT
+    # =====================================================
 
     conn.execute(text("""
 
@@ -172,12 +204,16 @@ def create_tables(conn):
 
             UNIQUE(district_id, code),
 
-            FOREIGN KEY(district_id)
+            FOREIGN KEY (district_id)
             REFERENCES district(id)
 
         )
 
     """))
+
+    # =====================================================
+    # VILLAGE
+    # =====================================================
 
     conn.execute(text("""
 
@@ -195,12 +231,16 @@ def create_tables(conn):
 
             UNIQUE(subdistrict_id, code),
 
-            FOREIGN KEY(subdistrict_id)
+            FOREIGN KEY (subdistrict_id)
             REFERENCES subdistrict(id)
 
         )
 
     """))
+
+    # =====================================================
+    # RAW TABLE
+    # =====================================================
 
     conn.execute(text("""
 
@@ -238,7 +278,21 @@ def home():
 
 
 # =========================================================
-# UPLOAD CSV
+# HEALTH CHECK
+# =========================================================
+
+@app.route("/health")
+def health():
+
+    return jsonify({
+
+        "status": "healthy"
+
+    })
+
+
+# =========================================================
+# UPLOAD TO DB
 # =========================================================
 
 @app.route("/upload-to-db", methods=["POST"])
@@ -246,9 +300,9 @@ def upload_to_db():
 
     try:
 
-        # =====================================================
-        # GET FILE
-        # =====================================================
+        # =================================================
+        # FILE VALIDATION
+        # =================================================
 
         file = request.files.get("file")
 
@@ -270,9 +324,9 @@ def upload_to_db():
                 "error": "Only CSV allowed"
             }), 400
 
-        # =====================================================
+        # =================================================
         # SAVE FILE
-        # =====================================================
+        # =================================================
 
         filename = secure_filename(file.filename)
 
@@ -283,11 +337,11 @@ def upload_to_db():
 
         file.save(filepath)
 
-        logging.info(f"Uploaded file: {filename}")
+        logging.info(f"Uploaded: {filename}")
 
-        # =====================================================
+        # =================================================
         # READ CSV
-        # =====================================================
+        # =================================================
 
         try:
 
@@ -305,9 +359,9 @@ def upload_to_db():
                 encoding="latin1"
             )
 
-        # =====================================================
+        # =================================================
         # RENAME COLUMNS
-        # =====================================================
+        # =================================================
 
         df = df.rename(columns={
 
@@ -341,6 +395,10 @@ def upload_to_db():
 
         ]
 
+        # =================================================
+        # VALIDATE COLUMNS
+        # =================================================
+
         missing_columns = [
 
             col
@@ -357,18 +415,18 @@ def upload_to_db():
 
             }), 400
 
-        # =====================================================
+        # =================================================
         # CLEAN DATA
-        # =====================================================
+        # =================================================
 
         df = df[required_columns]
 
         df = df.fillna("")
 
-        for column in required_columns:
+        for col in required_columns:
 
-            df[column] = (
-                df[column]
+            df[col] = (
+                df[col]
                 .astype(str)
                 .str.strip()
             )
@@ -386,17 +444,17 @@ def upload_to_db():
 
             df[col] = df[col].apply(clean_text)
 
-        # =====================================================
+        # =================================================
         # REMOVE EMPTY
-        # =====================================================
+        # =================================================
 
         df = df[
             df["village_code"] != ""
         ]
 
-        # =====================================================
+        # =================================================
         # REMOVE DUPLICATES
-        # =====================================================
+        # =================================================
 
         df = df.drop_duplicates(
             subset=["village_code"]
@@ -404,19 +462,19 @@ def upload_to_db():
 
         df = df.reset_index(drop=True)
 
-        # =====================================================
-        # DB TRANSACTION
-        # =====================================================
+        # =================================================
+        # DATABASE TRANSACTION
+        # =================================================
 
         with engine.begin() as conn:
 
             create_tables(conn)
 
-            # =================================================
+            # =============================================
             # RAW TABLE INSERT
-            # =================================================
+            # =============================================
 
-            raw_insert_query = text("""
+            raw_insert = text("""
 
                 INSERT INTO village_data (
 
@@ -451,21 +509,20 @@ def upload_to_db():
                 )
 
                 ON CONFLICT (village_code)
-
                 DO NOTHING
 
             """)
 
             conn.execute(
-                raw_insert_query,
+                raw_insert,
                 df.to_dict(orient="records")
             )
 
-            # =================================================
+            # =============================================
             # COUNTRY
-            # =================================================
+            # =============================================
 
-            country_insert = text("""
+            conn.execute(text("""
 
                 INSERT INTO country (
 
@@ -476,68 +533,63 @@ def upload_to_db():
 
                 VALUES (
 
-                    :name,
-                    :code
+                    'India',
+                    'IN'
 
                 )
 
                 ON CONFLICT (code)
-
                 DO NOTHING
 
-            """)
+            """))
 
-            conn.execute(country_insert, {
+            country_id = get_single_value(
 
-                "name": "India",
-                "code": "IN"
+                conn,
 
-            })
-
-            country_id = conn.execute(text("""
+                """
 
                 SELECT id
                 FROM country
                 WHERE code = 'IN'
 
-            """)).scalar()
+                """
 
-            # =================================================
+            )
+
+            # =============================================
             # STATES
-            # =================================================
+            # =============================================
 
             states = df[[
                 "state_code",
                 "state_name"
             ]].drop_duplicates()
 
-            state_insert = text("""
-
-                INSERT INTO state (
-
-                    name,
-                    code,
-                    country_id
-
-                )
-
-                VALUES (
-
-                    :name,
-                    :code,
-                    :country_id
-
-                )
-
-                ON CONFLICT (country_id, code)
-
-                DO NOTHING
-
-            """)
-
             for _, row in states.iterrows():
 
-                conn.execute(state_insert, {
+                conn.execute(text("""
+
+                    INSERT INTO state (
+
+                        name,
+                        code,
+                        country_id
+
+                    )
+
+                    VALUES (
+
+                        :name,
+                        :code,
+                        :country_id
+
+                    )
+
+                    ON CONFLICT (country_id, code)
+                    DO NOTHING
+
+                """), {
 
                     "name": row["state_name"],
                     "code": row["state_code"],
@@ -545,9 +597,9 @@ def upload_to_db():
 
                 })
 
-            # =================================================
+            # =============================================
             # DISTRICTS
-            # =================================================
+            # =============================================
 
             districts = df[[
                 "district_code",
@@ -555,55 +607,63 @@ def upload_to_db():
                 "state_code"
             ]].drop_duplicates()
 
-            district_insert = text("""
-
-                INSERT INTO district (
-
-                    name,
-                    code,
-                    state_id
-
-                )
-
-                VALUES (
-
-                    :name,
-                    :code,
-                    :state_id
-
-                )
-
-                ON CONFLICT (state_id, code)
-
-                DO NOTHING
-
-            """)
-
             for _, row in districts.iterrows():
 
-                state_id = conn.execute(text("""
+                state_id = get_single_value(
+
+                    conn,
+
+                    """
 
                     SELECT id
                     FROM state
                     WHERE code = :code
+                    LIMIT 1
 
-                """), {
+                    """,
 
-                    "code": row["state_code"]
+                    {
 
-                }).scalar()
+                        "code": row["state_code"]
 
-                conn.execute(district_insert, {
+                    }
 
-                    "name": row["district_name"],
-                    "code": row["district_code"],
-                    "state_id": state_id
+                )
 
-                })
+                if state_id:
 
-            # =================================================
+                    conn.execute(text("""
+
+                        INSERT INTO district (
+
+                            name,
+                            code,
+                            state_id
+
+                        )
+
+                        VALUES (
+
+                            :name,
+                            :code,
+                            :state_id
+
+                        )
+
+                        ON CONFLICT (state_id, code)
+                        DO NOTHING
+
+                    """), {
+
+                        "name": row["district_name"],
+                        "code": row["district_code"],
+                        "state_id": state_id
+
+                    })
+
+            # =============================================
             # SUBDISTRICTS
-            # =================================================
+            # =============================================
 
             subdistricts = df[[
                 "subdistrict_code",
@@ -611,55 +671,63 @@ def upload_to_db():
                 "district_code"
             ]].drop_duplicates()
 
-            subdistrict_insert = text("""
-
-                INSERT INTO subdistrict (
-
-                    name,
-                    code,
-                    district_id
-
-                )
-
-                VALUES (
-
-                    :name,
-                    :code,
-                    :district_id
-
-                )
-
-                ON CONFLICT (district_id, code)
-
-                DO NOTHING
-
-            """)
-
             for _, row in subdistricts.iterrows():
 
-                district_id = conn.execute(text("""
+                district_id = get_single_value(
+
+                    conn,
+
+                    """
 
                     SELECT id
                     FROM district
                     WHERE code = :code
+                    LIMIT 1
 
-                """), {
+                    """,
 
-                    "code": row["district_code"]
+                    {
 
-                }).scalar()
+                        "code": row["district_code"]
 
-                conn.execute(subdistrict_insert, {
+                    }
 
-                    "name": row["subdistrict_name"],
-                    "code": row["subdistrict_code"],
-                    "district_id": district_id
+                )
 
-                })
+                if district_id:
 
-            # =================================================
+                    conn.execute(text("""
+
+                        INSERT INTO subdistrict (
+
+                            name,
+                            code,
+                            district_id
+
+                        )
+
+                        VALUES (
+
+                            :name,
+                            :code,
+                            :district_id
+
+                        )
+
+                        ON CONFLICT (district_id, code)
+                        DO NOTHING
+
+                    """), {
+
+                        "name": row["subdistrict_name"],
+                        "code": row["subdistrict_code"],
+                        "district_id": district_id
+
+                    })
+
+            # =============================================
             # VILLAGES
-            # =================================================
+            # =============================================
 
             villages = df[[
                 "village_code",
@@ -667,62 +735,70 @@ def upload_to_db():
                 "subdistrict_code"
             ]].drop_duplicates()
 
-            village_insert = text("""
-
-                INSERT INTO village (
-
-                    name,
-                    code,
-                    subdistrict_id
-
-                )
-
-                VALUES (
-
-                    :name,
-                    :code,
-                    :subdistrict_id
-
-                )
-
-                ON CONFLICT (subdistrict_id, code)
-
-                DO NOTHING
-
-            """)
-
             for _, row in villages.iterrows():
 
-                subdistrict_id = conn.execute(text("""
+                subdistrict_id = get_single_value(
+
+                    conn,
+
+                    """
 
                     SELECT id
                     FROM subdistrict
                     WHERE code = :code
+                    LIMIT 1
 
-                """), {
+                    """,
 
-                    "code": row["subdistrict_code"]
+                    {
 
-                }).scalar()
+                        "code": row["subdistrict_code"]
 
-                conn.execute(village_insert, {
+                    }
 
-                    "name": row["village_name"],
-                    "code": row["village_code"],
-                    "subdistrict_id": subdistrict_id
+                )
 
-                })
+                if subdistrict_id:
 
-        # =====================================================
-        # SUCCESS RESPONSE
-        # =====================================================
+                    conn.execute(text("""
+
+                        INSERT INTO village (
+
+                            name,
+                            code,
+                            subdistrict_id
+
+                        )
+
+                        VALUES (
+
+                            :name,
+                            :code,
+                            :subdistrict_id
+
+                        )
+
+                        ON CONFLICT (subdistrict_id, code)
+                        DO NOTHING
+
+                    """), {
+
+                        "name": row["village_name"],
+                        "code": row["village_code"],
+                        "subdistrict_id": subdistrict_id
+
+                    })
+
+        # =================================================
+        # SUCCESS
+        # =================================================
 
         return jsonify({
 
             "success": True,
-            "message": "Dataset uploaded and normalized successfully",
+            "message": "Dataset uploaded successfully",
 
-            "total_rows": len(df)
+            "total_records": len(df)
 
         })
 
