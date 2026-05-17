@@ -234,11 +234,7 @@ def create_tables(conn):
 @app.route("/")
 def home():
 
-    return jsonify({
-
-        "message": "Server Running"
-
-    })
+    return render_template("index.html")
 
 
 # =========================================================
