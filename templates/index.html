@@ -1,0 +1,409 @@
+<!doctype html>
+
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8" />
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    />
+
+    <title>
+        AVI ETL Pipeline
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    />
+
+    <link
+        rel="preconnect"
+        href="https://fonts.googleapis.com"
+    />
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+    />
+
+</head>
+
+<body>
+
+    <!-- =========================================
+         TOAST POPUP CONTAINER
+    ========================================== -->
+
+    <div
+        id="toastContainer"
+        class="toast-container"
+    ></div>
+
+    <div class="container">
+
+        <!-- =========================================
+             HEADER
+        ========================================== -->
+
+        <header class="header">
+
+            <div class="logo">
+
+                <div class="logo-icon">
+                    A
+                </div>
+
+                <div>
+
+                    <h1>
+                        AVI ETL Pipeline
+                    </h1>
+
+                    <p>
+                        Dataset Cleaning + NeonDB Upload
+                    </p>
+
+                </div>
+
+            </div>
+
+        </header>
+
+        <!-- =========================================
+             MAIN GRID
+        ========================================== -->
+
+        <div class="grid">
+
+            <!-- =========================================
+                 CLEAN DATASET CARD
+            ========================================== -->
+
+            <section class="card">
+
+                <div class="card-top">
+
+                    <div>
+
+                        <h2>
+                            Clean Dataset
+                        </h2>
+
+                        <p>
+                            Upload raw government dataset
+                        </p>
+
+                    </div>
+
+                    <span class="tag blue">
+                        CSV/XLSX
+                    </span>
+
+                </div>
+
+                <form id="cleanForm">
+
+                    <!-- DROPZONE -->
+
+                    <label class="dropzone">
+
+                        <input
+                            type="file"
+                            name="file"
+                            required
+                        />
+
+                        <div class="dropzone-content">
+
+                            <div class="icon">
+                                ⬆
+                            </div>
+
+                            <h3>
+                                Upload Dataset
+                            </h3>
+
+                            <p>
+                                CSV, XLS, XLSX supported
+                            </p>
+
+                        </div>
+
+                    </label>
+
+                    <!-- FILE INFO -->
+
+                    <div
+                        id="cleanFileInfo"
+                        class="file-info hidden"
+                    >
+
+                        <div class="file-icon">
+                            📄
+                        </div>
+
+                        <div>
+
+                            <h4 id="cleanFileName">
+                                No file selected
+                            </h4>
+
+                            <p>
+                                Dataset ready for cleaning
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                    <!-- BUTTON -->
+
+                    <button
+                        type="submit"
+                        class="btn primary"
+                    >
+
+                        Clean & Download
+
+                    </button>
+
+                </form>
+
+            </section>
+
+            <!-- =========================================
+                 NEON DB CARD
+            ========================================== -->
+
+            <section class="card">
+
+                <div class="card-top">
+
+                    <div>
+
+                        <h2>
+                            Upload To NeonDB
+                        </h2>
+
+                        <p>
+                            Upload cleaned CSV dataset
+                        </p>
+
+                    </div>
+
+                    <span class="tag purple">
+                        PostgreSQL
+                    </span>
+
+                </div>
+
+                <form id="dbForm">
+
+                    <!-- DROPZONE -->
+
+                    <label class="dropzone">
+
+                        <input
+                            type="file"
+                            name="file"
+                            required
+                        />
+
+                        <div class="dropzone-content">
+
+                            <div class="icon">
+                                🛢
+                            </div>
+
+                            <h3>
+                                Upload Cleaned CSV
+                            </h3>
+
+                            <p>
+                                Upload cleaned dataset to database
+                            </p>
+
+                        </div>
+
+                    </label>
+
+                    <!-- FILE INFO -->
+
+                    <div
+                        id="dbFileInfo"
+                        class="file-info hidden"
+                    >
+
+                        <div class="file-icon">
+                            🛢
+                        </div>
+
+                        <div>
+
+                            <h4 id="dbFileName">
+                                No file selected
+                            </h4>
+
+                            <p>
+                                Ready for NeonDB upload
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                    <!-- BUTTON -->
+
+                    <button
+                        type="submit"
+                        class="btn secondary"
+                    >
+
+                        Upload To NeonDB
+
+                    </button>
+
+                </form>
+
+            </section>
+
+        </div>
+
+        <!-- =========================================
+             ACTIVITY PANEL
+        ========================================== -->
+
+        <section class="activity-panel">
+
+            <div class="activity-header">
+
+                <div>
+
+                    <h2>
+                        Processing Activity
+                    </h2>
+
+                    <p>
+                        Real-time upload and ETL execution tracking
+                    </p>
+
+                </div>
+
+                <div class="live-indicator">
+
+                    <span class="live-dot"></span>
+
+                    LIVE
+
+                </div>
+
+            </div>
+
+            <!-- =========================================
+                 CLEAN DATASET PROGRESS
+            ========================================== -->
+
+            <div class="process-card">
+
+                <div class="process-top">
+
+                    <div>
+
+                        <h3>
+                            Dataset Cleaning
+                        </h3>
+
+                        <p id="cleanStatusText">
+                            Waiting for upload...
+                        </p>
+
+                    </div>
+
+                    <span
+                        id="cleanPercent"
+                        class="process-percent"
+                    >
+                        0%
+                    </span>
+
+                </div>
+
+                <div class="progress-wrapper">
+
+                    <div
+                        id="cleanProgressBar"
+                        class="progress-bar blue-bar"
+                    ></div>
+
+                </div>
+
+            </div>
+
+            <!-- =========================================
+                 DB UPLOAD PROGRESS
+            ========================================== -->
+
+            <div class="process-card">
+
+                <div class="process-top">
+
+                    <div>
+
+                        <h3>
+                            NeonDB Upload
+                        </h3>
+
+                        <p id="dbStatusText">
+                            Waiting for upload...
+                        </p>
+
+                    </div>
+
+                    <span
+                        id="dbPercent"
+                        class="process-percent"
+                    >
+                        0%
+                    </span>
+
+                </div>
+
+                <div class="progress-wrapper">
+
+                    <div
+                        id="dbProgressBar"
+                        class="progress-bar purple-bar"
+                    ></div>
+
+                </div>
+
+            </div>
+
+            <!-- =========================================
+                 NOTIFICATIONS
+            ========================================== -->
+
+            <div
+                id="notifications"
+                class="notifications"
+            ></div>
+
+        </section>
+
+    </div>
+
+    <!-- =========================================
+         JAVASCRIPT
+    ========================================== -->
+
+    <script
+        src="{{ url_for('static', filename='app.js') }}"
+    ></script>
+
+</body>
+
+</html>
