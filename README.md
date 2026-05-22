@@ -12,8 +12,8 @@
   </a>
 
   <!-- License -->
-  <a href="./LICENSE" target="_blank" rel="noopener noreferrer">
-    <img src="https://img.shields.io/github/license/MrigankoSarkar/All_India_Villages_API?style=for-the-badge" alt="License">
+  <a href="./LICENSE">
+  <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="MIT License">
   </a>
 
   <!-- Repo Stats -->
