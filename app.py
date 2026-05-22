@@ -32,7 +32,7 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
-    raise Exception("DATABASE_URL missing in .env")
+    DATABASE_URL = None
 
 
 # =========================================================
@@ -68,17 +68,21 @@ logging.basicConfig(
 # DATABASE ENGINE
 # =========================================================
 
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=300,
-    future=True,
-    connect_args={
-        "sslmode": "require"
-    }
-)
+engine = None
 
-logging.info("Connected To NeonDB")
+if DATABASE_URL:
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        future=True,
+        connect_args={
+            "sslmode": "require"
+        }
+    )
+    logging.info("Connected To NeonDB")
+else:
+    engine = None
 
 
 # =========================================================
@@ -577,6 +581,9 @@ def upload_to_db():
         # =================================================
 
         df = clean_dataset_dataframe(df)
+
+        if engine is None:
+            raise Exception("DATABASE_URL missing; cannot upload to database")
 
         # =================================================
         # DATABASE TRANSACTION

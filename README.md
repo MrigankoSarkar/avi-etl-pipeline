@@ -1,5 +1,151 @@
 # All India Villages API ETL Pipeline
 
+<p align="center">
+  Production-grade ETL pipeline for cleaning, validating, normalizing, and ingesting MDDS-style Indian administrative geography datasets into PostgreSQL.
+</p>
+
+<p align="center">
+
+  <!-- Documentation -->
+  <a href="https://avi-docs.readthedocs.io/" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/readthedocs/avi-docs?style=for-the-badge" alt="Read the Docs">
+  </a>
+
+  <!-- License -->
+  <a href="./LICENSE" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/github/license/MrigankoSarkar/All_India_Villages_API?style=for-the-badge" alt="License">
+  </a>
+
+  <!-- Repo Stats -->
+  <img src="https://img.shields.io/github/stars/MrigankoSarkar/All_India_Villages_API?style=for-the-badge" alt="Stars">
+
+  <img src="https://img.shields.io/github/forks/MrigankoSarkar/All_India_Villages_API?style=for-the-badge" alt="Forks">
+
+  <img src="https://img.shields.io/github/issues/MrigankoSarkar/All_India_Villages_API?style=for-the-badge" alt="Issues">
+
+</p>
+
+---
+
+## Tech Stacks
+
+<p align="center">
+
+  <!-- Python -->
+  <img src="https://img.shields.io/badge/Python-3.11-blue?style=for-the-badge&logo=python" alt="Python">
+
+  <!-- Flask -->
+  <img src="https://img.shields.io/badge/Flask-3-black?style=for-the-badge&logo=flask" alt="Flask">
+
+  <!-- PostgreSQL -->
+  <img src="https://img.shields.io/badge/PostgreSQL-16-blue?style=for-the-badge&logo=postgresql" alt="PostgreSQL">
+
+  <!-- Pandas -->
+  <img src="https://img.shields.io/badge/Pandas-2-darkblue?style=for-the-badge&logo=pandas" alt="Pandas">
+
+  <!-- Neon -->
+  <img src="https://img.shields.io/badge/Neon-Postgres-00E599?style=for-the-badge" alt="Neon">
+
+</p>
+
+---
+
+## Deployments
+
+
+<p align="center">
+
+  <!-- Main Website -->
+  <a href="https://all-india-villages-api-lyart.vercel.app" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Live_Website-All_India_Villages_API-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Website">
+  </a>
+
+  <!-- ETL Pipeline Website -->
+  <a href="https://avi-etl-pipeline.onrender.com/" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/ETL_Pipeline_Website-Cloud_Hosting-5A67D8?style=for-the-badge&logo=render&logoColor=white" alt="Render">
+  </a>
+
+  <!-- Neon -->
+  <a href="https://neon.com/" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Neon-Serverless_Postgres-00E599?style=for-the-badge&logo=neon&logoColor=black" alt="Neon">
+  </a>
+
+  <!-- Render -->
+  <a href="https://render.com/" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Render-Cloud_Hosting-5A67D8?style=for-the-badge&logo=render&logoColor=white" alt="Render">
+  </a>
+
+</p>
+
+---
+
+## Social & Contact
+
+<p align="center">
+
+  <!-- GitHub -->
+  <a href="https://github.com/MrigankoSarkar" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub">
+  </a>
+
+  <!-- LinkedIn -->
+  <a href="https://www.linkedin.com/in/mriganko-sarkar-4446aa250" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn">
+  </a>
+
+  <!-- Instagram -->
+  <a href="https://www.instagram.com/mrigankosarkar2004/" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white" alt="Instagram">
+  </a>
+
+  <!-- Facebook -->
+  <a href="https://www.facebook.com/profile.php?id=100086938462226" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Facebook-1877F2?style=for-the-badge&logo=facebook&logoColor=white" alt="Facebook">
+  </a>
+
+  <!-- Gmail -->
+  <a href="mailto:mrigankosarkar04@gmail.com" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white" alt="Email">
+  </a>
+
+</p>
+
+---
+## Overview
+
+The **All India Villages API ETL Pipeline** is a production-focused Flask-based ETL service designed to clean, validate, normalize, and ingest hierarchical Indian administrative geography datasets into PostgreSQL-compatible databases.
+
+The system supports:
+
+- MDDS-compatible administrative geography ingestion
+- CSV and Excel uploads
+- Deterministic data normalization
+- Idempotent PostgreSQL inserts
+- Hierarchical relational modeling
+- Internal ETL workflows for geography APIs and analytics systems
+
+---
+
+## Features
+
+- CSV / XLS / XLSX ingestion
+- Automatic column normalization
+- Deduplication and validation
+- PostgreSQL + Neon support
+- Idempotent `ON CONFLICT` ingestion
+- Hierarchical geography modeling
+- Flask-based upload UI
+- Downloadable cleaned datasets
+- Transaction-safe inserts
+- UTF-8 + latin1 CSV support
+
+---
+
+
+
+
+## ETL Pipeline Workflows
+
 Production-grade ETL utility for cleaning, validating, and ingesting MDDS-like administrative
 geography datasets (Country → State → District → Subdistrict → Village) into a PostgreSQL
 instance (Neon recommended).
@@ -141,10 +287,29 @@ Contact & ownership
 - Maintained as part of the All India Villages API project. Open issues or PRs in the parent repo.
 
 ---
-If you'd like, I can now:
 
-- Add automated tests for the cleaning functions (pytest + sample fixtures)
-- Implement chunked COPY-based ingestion for high-volume uploads
-- Add a detailed `CONTRIBUTING.md` and `DEVELOPMENT.md` for ETL maintainers
+## License
 
-Which of these would you like me to do next?
+This project is licensed under the MIT License.
+
+See the [LICENSE](LICENSE) file for details.
+
+---
+
+## Author
+
+Developed and maintained by **Mriganko Sarkar**.
+
+---
+
+## Maintainers
+
+Maintained by the All India Villages API contributors.
+
+For enterprise integrations, ETL workflows, collaboration, or infrastructure support, contact via LinkedIn or email above.
+
+---
+
+## Documentation
+
+Full documentation is available at: [ReadTheDocs](https://avi-docs.readthedocs.io/)
